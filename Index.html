@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ข้อมูลการตรวจเช็คอุปกรณ์ป้องกันภัยส่วนบุคคล (PPE)</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --panel-2: #263449;
+      --border: #334155;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-2: #818cf8;
+      --green: #34d399;
+      --red: #f87171;
+      --yellow: #fbbf24;
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', 'Noto Sans Thai', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 20px 24px 48px;
+    }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 12px; margin-bottom: 22px;
+    }
+    header h1 { font-size: 22px; font-weight: 700; }
+    header h1 span { color: var(--accent); }
+    header .sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
+    .btn {
+      background: var(--panel-2); color: var(--text);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 8px 14px; font-size: 13px; cursor: pointer; transition: background .15s;
+    }
+    .btn:hover { background: #334155; }
+    .btn.primary { background: var(--accent); color: #0f172a; font-weight: 600; border-color: transparent; }
+    .btn.primary:hover { background: #7dd3fc; }
+
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px; margin-bottom: 20px;
+    }
+    .kpi {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 16px; position: relative; overflow: hidden;
+    }
+    .kpi::after {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: var(--bar, var(--accent));
+    }
+    .kpi .label { color: var(--muted); font-size: 12px; letter-spacing: .4px; }
+    .kpi .value { font-size: 30px; font-weight: 700; margin-top: 6px; }
+    .kpi .hint { color: var(--muted); font-size: 12px; margin-top: 4px; }
+    .kpi .value.green { color: var(--green); }
+    .kpi .value.red { color: var(--red); }
+
+    .filters {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 14px 16px; margin-bottom: 20px;
+      display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end;
+    }
+    .filter label {
+      display: block; font-size: 11px; color: var(--muted);
+      margin-bottom: 5px; letter-spacing: .4px;
+    }
+    .filter input, .filter select {
+      background: var(--panel-2); border: 1px solid var(--border);
+      color: var(--text); border-radius: 8px; padding: 7px 10px;
+      font-size: 13px; min-width: 150px;
+    }
+    .filter input[type="date"] { min-width: 140px; }
+    .filter select { min-width: 110px; }
+    .filter .range { display: flex; align-items: center; gap: 6px; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+      gap: 16px; margin-bottom: 20px;
+    }
+    .card {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 16px;
+    }
+    .card h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--accent-2); }
+    .chart-wrap { position: relative; height: 270px; }
+    .chart-wrap.small { height: 240px; }
+
+    .status-bar {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-top: 16px; color: var(--muted); font-size: 12px; flex-wrap: wrap; gap: 8px;
+    }
+    .loading { opacity: .55; pointer-events: none; }
+
+    .table-card { margin-bottom: 20px; overflow: hidden; }
+    .card-head {
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 8px; margin-bottom: 12px;
+    }
+    .card-head h3 { margin-bottom: 0; }
+    .table-count { color: var(--muted); font-size: 12px; }
+    .table-scroll { max-height: 440px; overflow: auto; border-radius: 8px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th {
+      position: sticky; top: 0;
+      background: var(--panel-2);
+      text-align: left; padding: 10px 12px;
+      color: var(--muted); font-weight: 600;
+      white-space: nowrap; z-index: 1;
+    }
+    tbody td { padding: 9px 12px; border-top: 1px solid var(--border); vertical-align: top; }
+    tbody tr:hover { background: var(--panel-2); }
+    .tag {
+      display: inline-block; padding: 2px 9px; border-radius: 999px;
+      font-size: 12px; font-weight: 600; white-space: nowrap;
+    }
+    .tag.pass { background: rgba(52, 211, 153, .12); color: var(--green); border: 1px solid rgba(52, 211, 153, .35); }
+    .tag.fail { background: rgba(248, 113, 113, .12); color: var(--red); border: 1px solid rgba(248, 113, 113, .35); }
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 6px;
+      font-size: 12px; margin: 1px 4px 1px 0; white-space: nowrap;
+      background: rgba(56, 189, 248, .12); color: var(--accent); border: 1px solid rgba(56, 189, 248, .35);
+    }
+    .no-target { color: var(--red); font-weight: 600; }
+    .details-cell { color: var(--muted); font-size: 12px; word-break: break-all; max-width: 340px; }
+    .empty { color: var(--muted); text-align: center; padding: 40px 0; }
+
+    .legend-custom {
+      display: flex; justify-content: center; align-items: center;
+      gap: 22px; margin-top: 10px; flex-wrap: wrap;
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #e2e8f0; }
+    .legend-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; flex: none; }
+    .legend-item b { font-weight: 600; }
+    .legend-item .pct { color: #7dd3fc; font-weight: 700; }
+
+    @media (max-width: 640px) {
+      .grid { grid-template-columns: 1fr; }
+      body { padding: 14px 12px 40px; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div>
+      <h1>ข้อมูลการตรวจเช็คอุปกรณ์ป้องกันภัยส่วนบุคคล (PPE) ของนักศึกษาใช้งานห้องปฏิบัติการประจำวัน</h1>
+      <div class="sub">ตรวจสอบผลการตรวจเช็คอุปกรณ์ป้องกันภัยส่วนบุคคล (PPE) ของนักศึกษา — ฟิลเตอร์ตามวันที่และช่วงเวลา 08:00–18:00 น.</div>
+    </div>
+    <div>
+      <button class="btn" id="refreshBtn" onclick="refreshData()">⟳ รีเฟรชข้อมูล</button>
+    </div>
+  </header>
+
+  <section class="kpis">
+    <div class="kpi" style="--bar:#38bdf8">
+      <div class="label">เฟรมที่ตรวจทั้งหมด</div>
+      <div class="value" id="kpiFrames">–</div>
+      <div class="hint" id="kpiFramesHint"></div>
+    </div>
+    <div class="kpi" style="--bar:#34d399">
+      <div class="label">ผ่าน</div>
+      <div class="value green" id="kpiPass">–</div>
+      <div class="hint" id="kpiPassHint"></div>
+    </div>
+    <div class="kpi" style="--bar:#f87171">
+      <div class="label">ไม่ผ่าน</div>
+      <div class="value red" id="kpiNotPass">–</div>
+      <div class="hint" id="kpiNotPassHint"></div>
+    </div>
+    <div class="kpi" style="--bar:#fbbf24">
+      <div class="label">อัตราการผ่าน</div>
+      <div class="value" id="kpiRate">–</div>
+      <div class="hint">ของเฟรมในเงื่อนไขที่เลือก</div>
+    </div>
+  </section>
+
+  <section class="filters">
+    <div class="filter">
+      <label>จากวันที่</label>
+      <input type="date" id="filterFrom">
+    </div>
+    <div class="filter">
+      <label>ถึงวันที่</label>
+      <input type="date" id="filterTo">
+    </div>
+    <div class="filter">
+      <label>จากเวลา</label>
+      <select id="hourFrom">
+        <option value="8">08:00</option>
+        <option value="10">10:00</option>
+        <option value="12">12:00</option>
+        <option value="14">14:00</option>
+        <option value="16">16:00</option>
+        <option value="18">18:00</option>
+      </select>
+    </div>
+    <div class="filter">
+      <label>ถึงเวลา</label>
+      <select id="hourTo">
+        <option value="8">08:00</option>
+        <option value="10">10:00</option>
+        <option value="12">12:00</option>
+        <option value="14">14:00</option>
+        <option value="16">16:00</option>
+        <option value="18" selected>18:00</option>
+      </select>
+    </div>
+    <div class="filter">
+      <label>คลาสที่สนใจ</label>
+      <select id="filterClass"><option value="">ทั้งหมด</option></select>
+    </div>
+    <div class="filter">
+      <label>สถานะผลการตรวจ</label>
+      <select id="filterPass">
+        <option value="all">ทั้งหมด</option>
+        <option value="pass">ผ่าน</option>
+        <option value="notpass">ไม่ผ่าน</option>
+      </select>
+    </div>
+    <button class="btn primary" onclick="applyFilters()">กรองผลลัพธ์</button>
+  </section>
+
+  <section class="grid">
+    <div class="card">
+      <h3>สัดส่วนผล ผ่าน / ไม่ผ่าน (ต่อจำนวนเฟรมทั้งหมดหลังกรอง)</h3>
+      <div class="chart-wrap small"><canvas id="chartStatus"></canvas></div>
+      <div class="legend-custom" id="statusLegend"></div>
+    </div>
+    <div class="card">
+      <h3>จำนวนการตรวจจับตามคลาส</h3>
+      <div class="chart-wrap"><canvas id="chartClass"></canvas></div>
+    </div>
+  </section>
+
+  <section class="card table-card">
+    <div class="card-head">
+      <h3>Raw Data จาก Google Sheets (ตามฟิลเตอร์ที่เลือก)</h3>
+      <div class="table-count" id="tableCount"></div>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>เวลา</th>
+            <th>จำนวนวัตถุ</th>
+            <th>คลาสที่ตรวจพบ</th>
+            <th>ผล (ผ่าน/ไม่ผ่าน)</th>
+            <th>รายละเอียด (Details)</th>
+          </tr>
+        </thead>
+        <tbody id="rawTable"><tr><td colspan="5" class="empty">กำลังโหลดข้อมูล...</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="status-bar">
+    <span id="statusText">กำลังโหลดข้อมูล...</span>
+    <span id="statusCount"></span>
+  </div>
+
+  <script>
+    const CLASS_COLORS = {
+      'glasses': '#38bdf8',
+      'helmet': '#f87171',
+      'safety-vest': '#fbbf24',
+      'gloves': '#34d399',
+      'boots': '#a78bfa',
+      'vest': '#fbbf24',
+      'mask': '#f472b6'
+    };
+    const fallbackColors = ['#38bdf8','#f87171','#fbbf24','#34d399','#a78bfa','#f472b6','#2dd4bf','#fb923c','#818cf8','#facc15'];
+    let ALL_LOGS = [];
+    let charts = {};
+
+    function colorOf(cls, i) {
+      return CLASS_COLORS[cls] || fallbackColors[i % fallbackColors.length];
+    }
+    function pad(n) { return String(n).padStart(2, '0'); }
+
+    function buildClassOptions() {
+      const INVALID_CLS = /^(no target class|no target|undefined|null|none|nan|-|—|n\/a)$/i;
+      const set = new Set();
+      ALL_LOGS.forEach(l => l.classList.forEach(c => { if (c && !INVALID_CLS.test(c)) set.add(c); }));
+      const sel = document.getElementById('filterClass');
+      sel.innerHTML = '<option value="">ทั้งหมด</option>' +
+        [...set].sort().map(c => '<option value="' + c + '">' + c + '</option>').join('');
+    }
+
+    function setDateDefaults() {
+      if (!ALL_LOGS.length) return;
+      const min = new Date(ALL_LOGS[0].timestamp);
+      const max = new Date(ALL_LOGS[ALL_LOGS.length - 1].timestamp);
+      const fmt = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+      if (!document.getElementById('filterFrom').value) document.getElementById('filterFrom').value = fmt(min);
+      if (!document.getElementById('filterTo').value) document.getElementById('filterTo').value = fmt(max);
+    }
+
+    /* ---------- filtering ---------- */
+    function getFiltered() {
+      const from = document.getElementById('filterFrom').value;
+      const to = document.getElementById('filterTo').value;
+      const h1 = parseInt(document.getElementById('hourFrom').value, 10);
+      const h2 = parseInt(document.getElementById('hourTo').value, 10);
+      const cls = document.getElementById('filterClass').value;
+      const pass = document.getElementById('filterPass').value;
+
+      const fromT = from ? new Date(from + 'T00:00:00').getTime() : -Infinity;
+      const toT = to ? new Date(to + 'T23:59:59').getTime() : Infinity;
+
+      return ALL_LOGS.filter(l => {
+        const d = new Date(l.timestamp);
+        const t = d.getTime();
+        if (t < fromT || t > toT) return false;
+        const h = d.getHours();
+        if (h < h1 || h > h2) return false;
+        if (cls && l.classList.indexOf(cls) < 0) return false;
+        if (pass === 'pass' && !l.pass) return false;
+        if (pass === 'notpass' && l.pass) return false;
+        return true;
+      });
+    }
+
+    /* ---------- KPIs ---------- */
+    function updateKPIs(logs) {
+      const frames = logs.length;
+      const passN = logs.filter(l => l.pass).length;
+      const notPassN = frames - passN;
+      const rate = frames ? (passN / frames * 100) : 0;
+
+      document.getElementById('kpiFrames').textContent = frames.toLocaleString('en-US');
+      document.getElementById('kpiFramesHint').textContent = 'เฟรมที่ตรวจพบวัตถุ ' + logs.filter(l => l.total > 0).length + ' เฟรม';
+      document.getElementById('kpiPass').textContent = passN.toLocaleString('en-US');
+      document.getElementById('kpiPassHint').textContent = frames ? (passN / frames * 100).toFixed(1) + '% ของเฟรม' : '';
+      document.getElementById('kpiNotPass').textContent = notPassN.toLocaleString('en-US');
+      document.getElementById('kpiNotPassHint').textContent = frames ? (notPassN / frames * 100).toFixed(1) + '% ของเฟรม' : '';
+      document.getElementById('kpiRate').textContent = rate.toFixed(1) + '%';
+    }
+
+    /* ---------- charts ---------- */
+    const chartOpts = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#e2e8f0' } },
+        tooltip: { backgroundColor: '#1e293b', borderColor: '#334155', borderWidth: 1 }
+      },
+      scales: {
+        x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+        y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+      }
+    };
+
+    const doughnutCenterPlugin = {
+      id: 'doughnutCenter',
+      afterDraw(chart, args, options) {
+        if (chart.config.type !== 'doughnut') return;
+        const dataset = chart.data.datasets[0];
+        const values = dataset.data || [];
+        const total = values.reduce((a, b) => a + b, 0);
+        const pass = values[0] || 0;
+        const pct = total ? (pass / total * 100).toFixed(1) : '0.0';
+        const meta = chart.getDatasetMeta(0);
+        if (!meta.data || !meta.data.length) return;
+        const xC = meta.data[0].x;
+        const yC = meta.data[0].y;
+        const ctx = chart.ctx;
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = '700 26px Segoe UI, sans-serif';
+        ctx.fillStyle = '#38bdf8';
+        ctx.fillText(pct + '%', xC, yC - 8);
+        ctx.font = '12px Segoe UI, sans-serif';
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillText('อัตราการผ่าน', xC, yC + 16);
+        ctx.restore();
+      }
+    };
+
+    function renderCharts(logs) {
+      // 1. Pass / Not Pass doughnut (proportion of total after filtering)
+      const passN = logs.filter(l => l.pass).length;
+      const notPassN = logs.length - passN;
+      if (!charts.chartStatus) {
+        charts.chartStatus = new Chart(document.getElementById('chartStatus'), {
+          type: 'doughnut',
+          data: { labels: ['ผ่าน', 'ไม่ผ่าน'], datasets: [{ data: [], backgroundColor: ['#34d399', '#f87171'], borderColor: '#1e293b', borderWidth: 3 }] },
+          options: {
+            ...chartOpts,
+            cutout: '68%',
+            plugins: {
+              ...chartOpts.plugins,
+              legend: { display: false },
+              tooltip: {
+                ...chartOpts.plugins.tooltip,
+                callbacks: {
+                  label: (ctx) => {
+                    const arr = ctx.chart.data.datasets[0].data || [];
+                    const tot = arr.reduce((a, b) => a + b, 0) || 1;
+                    const val = ctx.raw;
+                    return ctx.label + ': ' + val + ' (' + (val / tot * 100).toFixed(1) + '%)';
+                  }
+                }
+              }
+            }
+          },
+          plugins: [doughnutCenterPlugin]
+        });
+      }
+      charts.chartStatus.data.labels = ['ผ่าน', 'ไม่ผ่าน'];
+      charts.chartStatus.data.datasets[0].data = [passN, notPassN];
+      charts.chartStatus.update();
+
+      // Custom HTML legend (percentage in a non-black color)
+      const tot = passN + notPassN;
+      const pctPass = tot ? (passN / tot * 100).toFixed(1) : '0.0';
+      const pctNot = tot ? (notPassN / tot * 100).toFixed(1) : '0.0';
+      document.getElementById('statusLegend').innerHTML =
+        '<div class="legend-item">' +
+          '<span class="legend-dot" style="background:#34d399"></span>' +
+          'ผ่าน: <b>' + passN + '</b> เฟรม' +
+          '<span class="pct">(' + pctPass + '%)</span>' +
+        '</div>' +
+        '<div class="legend-item">' +
+          '<span class="legend-dot" style="background:#f87171"></span>' +
+          'ไม่ผ่าน: <b>' + notPassN + '</b> เฟรม' +
+          '<span class="pct">(' + pctNot + '%)</span>' +
+        '</div>';
+
+      // 2. Class distribution - x-axis shows each class name clearly.
+      //    "No Target" is counted as its own category (only frames with
+      //    zero detections) and given a distinct color from glasses.
+      //    Other noise tokens (Undefined, null, none, ...) are excluded.
+      const INVALID_CLS = /^(undefined|null|none|nan|-|—|n\/a)$/i;
+      const classCount = {};
+      let noTarget = 0;
+      logs.forEach(l => {
+        if (l.classList.length === 0) { noTarget++; }
+        else l.classList.forEach(c => {
+          if (!c || INVALID_CLS.test(c)) return;
+          classCount[c] = (classCount[c] || 0) + 1;
+        });
+      });
+
+      let clsNames = Object.keys(classCount).sort();
+      const clsVals = clsNames.map(c => classCount[c]);
+      const clsColors = clsNames.map((c, i) => colorOf(c, i));
+      if (noTarget > 0) {
+        clsNames = clsNames.concat(['No Target']);
+        clsVals.push(noTarget);
+        clsColors.push('#9ca3af');
+      }
+
+      if (!charts.chartClass) {
+        charts.chartClass = new Chart(document.getElementById('chartClass'), {
+          type: 'bar',
+          data: { labels: [], datasets: [{ data: [], backgroundColor: [], borderRadius: 6 }] },
+          options: {
+            ...chartOpts,
+            plugins: {
+              ...chartOpts.plugins,
+              legend: { display: false }
+            },
+            scales: {
+              x: {
+                ticks: { color: '#e2e8f0', autoSkip: false, maxRotation: 45, minRotation: 0, font: { size: 13, weight: '600' } },
+                grid: { color: '#334155' },
+                title: { display: true, text: 'คลาสอุปกรณ์ PPE', color: '#94a3b8', font: { size: 12 } }
+              },
+              y: {
+                beginAtZero: true,
+                ticks: { color: '#94a3b8', precision: 0, stepSize: 1 },
+                grid: { color: '#334155' },
+                title: { display: true, text: 'จำนวนครั้งที่ตรวจพบ', color: '#94a3b8', font: { size: 12 } }
+              }
+            }
+          }
+        });
+      }
+      charts.chartClass.data.labels = clsNames;
+      charts.chartClass.data.datasets[0].data = clsVals;
+      charts.chartClass.data.datasets[0].backgroundColor = clsColors;
+      charts.chartClass.update();
+    }
+
+    /* ---------- render ---------- */
+    function applyFilters() {
+      const filtered = getFiltered();
+      updateKPIs(filtered);
+      renderCharts(filtered);
+      renderRawTable(filtered);
+      document.getElementById('statusCount').textContent =
+        'แสดง ' + filtered.length.toLocaleString('en-US') + ' จาก ' + ALL_LOGS.length.toLocaleString('en-US') + ' เฟรม';
+    }
+
+    function fmtDateTime(iso) {
+      const d = new Date(iso);
+      return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) +
+        ' ' + d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+    }
+
+    function renderRawTable(logs) {
+      const tbody = document.getElementById('rawTable');
+      document.getElementById('tableCount').textContent =
+        'แสดง ' + logs.length.toLocaleString('en-US') + ' แถว (จากทั้งหมด ' + ALL_LOGS.length.toLocaleString('en-US') + ' แถว)';
+
+      if (!logs.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty">ไม่มีข้อมูลที่ตรงกับเงื่อนไขฟิลเตอร์</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = [...logs].reverse().map(l => {
+        const classes = l.classList.length
+          ? l.classList.map(c => '<span class="badge">' + c + '</span>').join('')
+          : '<span class="no-target">No Target</span>';
+        const result = l.pass
+          ? '<span class="tag pass">ผ่าน</span>'
+          : '<span class="tag fail">ไม่ผ่าน</span>';
+        const details = l.details || '';
+        return '<tr>' +
+          '<td>' + fmtDateTime(l.timestamp) + '</td>' +
+          '<td>' + l.total + '</td>' +
+          '<td>' + classes + '</td>' +
+          '<td>' + result + '</td>' +
+          '<td class="details-cell">' + details + '</td>' +
+        '</tr>';
+      }).join('');
+    }
+
+    function refreshData() {
+      const btn = document.getElementById('refreshBtn');
+      btn.classList.add('loading');
+      document.getElementById('statusText').textContent = 'กำลังโหลดข้อมูลจาก Google Sheets...';
+
+      google.script.run
+        .withSuccessHandler(function (logs) {
+          ALL_LOGS = logs;
+          buildClassOptions();
+          setDateDefaults();
+          applyFilters();
+          document.getElementById('statusText').textContent =
+            'อัปเดตล่าสุด: ' + new Date().toLocaleTimeString('th-TH');
+          btn.classList.remove('loading');
+        })
+        .withFailureHandler(function (err) {
+          document.getElementById('statusText').textContent = 'เกิดข้อผิดพลาด: ' + err.message;
+          btn.classList.remove('loading');
+        })
+        .getLogs();
+    }
+
+    window.addEventListener('load', function () {
+      refreshData();
+    });
+  </script>
+</body>
+</html>
